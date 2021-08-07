@@ -28,12 +28,12 @@ ServerTCP::ServerTCP(std::string _ipNumber, int _portNumber, int _bufferSize)
       socketFileDescriptor{-1} {
   listenSocket = socket(AF_INET, SOCK_STREAM, 0);
   if (listenSocket < 0) {
-    std::cout << "ERROR: OPEN SOCKET " << listenSocket << std::endl;
+    std::cout << "ERROR: cannot open the socket listener [" << listenSocket << "]." << std::endl;
     close(listenSocket);
     return;
   }
   if (!optionsAndBind()) {
-    std::cout << "ERROR: BIND" << std::endl;
+    std::cout << "ERROR: in bind and options." << std::endl;
     close(listenSocket);
     return;
   }
@@ -41,6 +41,7 @@ ServerTCP::ServerTCP(std::string _ipNumber, int _portNumber, int _bufferSize)
 }
 
 ServerTCP::~ServerTCP() {
+  std::cout << "- ~ServerTCP\n";
   quit();
   if (threadReceiver && threadReceiver->joinable())
     threadReceiver->join();
@@ -48,10 +49,11 @@ ServerTCP::~ServerTCP() {
   if (threadTransmitter && threadTransmitter->joinable())
     threadTransmitter->join();
 
-  std::cout << "joint" << std::endl;
+  std::cout << "Server closed." << std::endl;
 }
 
 void ServerTCP::quit() {
+  std::cout << "- quit\n";
   exit = true;
   if (listenSocket >= 0) {
     close(listenSocket);
@@ -64,15 +66,17 @@ void ServerTCP::quit() {
 }
 
 void ServerTCP::run() {
+  std::cout << "- run\n";
   char buffer[bufferSize];
   while (!exit) {
     if (accept()) {
-      if (threadTransmitter == nullptr) {
+      if (threadTransmitter == nullptr)
         threadTransmitter = std::unique_ptr<std::thread>(new std::thread(&ServerTCP::txChat, this));
-      }
+      std::cout << "- txChat\n";
+
       while (!exit) {
         if (receive(buffer) <= 0) {
-          std::cout << "Read size less than zero." << std::endl;
+          std::cout << "ERROR: Message size is less than zero." << std::endl;
           close(socketFileDescriptor);
           socketFileDescriptor = -1;
           break;
@@ -85,30 +89,29 @@ void ServerTCP::run() {
 }
 
 void ServerTCP::txChat() {
+  std::cout << "- txChat\n";
   while (!exit) {
-    std::string to_tx;
-    std::getline(std::cin, to_tx);
-    if (exit) {
+    std::cout << "(Server) Insert the mex to be sent: ";
+    std::string consoleMessage;
+    std::getline(std::cin, consoleMessage);
+    if (exit)
       break;
-    }
-    if (send(to_tx.c_str(), to_tx.length()) >= 0) {
+    if (send(consoleMessage.c_str(), consoleMessage.length()) >= 0)
       send("\n", 1);
-    }
   }
 }
 
 bool ServerTCP::optionsAndBind() {
+  std::cout << "- optionsAndBind\n";
   int option(1);
   setsockopt(listenSocket, SOL_SOCKET, SO_REUSEADDR, (char*)&option, sizeof(option));
   struct sockaddr_in my_addr = {0};
   my_addr.sin_family         = AF_INET;
-
-  my_addr.sin_port = htons(portNumber);
-
-  my_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+  my_addr.sin_port           = htons(portNumber);
+  my_addr.sin_addr.s_addr    = htonl(INADDR_ANY);
 
   if (bind(listenSocket, (struct sockaddr*)&my_addr, sizeof(my_addr)) < 0) {
-    std::cout << "ERROR: BIND SOCKET" << std::endl;
+    std::cout << "ERROR: cannot bind the socket." << std::endl;
     if (listenSocket >= 0) {
       close(listenSocket);
     }
@@ -116,28 +119,26 @@ bool ServerTCP::optionsAndBind() {
   }
 
   if (listen(listenSocket, 1) < 0) {
-    std::cout << "ERROR: LISTEN SOCKET" << std::endl;
-
+    std::cout << "ERROR: cannot listen in that socket." << std::endl;
     return false;
   }
   return true;
 }
 
 bool ServerTCP::accept() {
+  std::cout << "- accept\n";
   struct sockaddr_in client_addr;
   socklen_t addr_l     = sizeof(client_addr);
   socketFileDescriptor = ::accept(listenSocket, (struct sockaddr*)&client_addr, &addr_l);
   if (socketFileDescriptor < 0) {
-    std::cout << "ERROR: ACCEPT CONNECTION" << std::endl;
+    std::cout << "ERROR: cannot accept the connection." << std::endl;
     if (listenSocket >= 0) {
       close(listenSocket);
       listenSocket = -1;
     }
     return false;
   }
-
-  std::cout << "New connection from "
-            << inet_ntoa(client_addr.sin_addr) << std::endl;
+  std::cout << "New connection from " << inet_ntoa(client_addr.sin_addr) << std::endl;
   ipNumber = inet_ntoa(client_addr.sin_addr);
   return true;
 }
@@ -145,7 +146,7 @@ bool ServerTCP::accept() {
 int ServerTCP::receive(char* _buffer) {
   int rcv_size = ::recv(socketFileDescriptor, _buffer, bufferSize, 0);
   if (rcv_size < 0) {
-    std::cout << "ERROR: RECV" << std::endl;
+    std::cout << "ERROR: receive error." << std::endl;
     if (socketFileDescriptor >= 0) {
       close(socketFileDescriptor);
       socketFileDescriptor = -1;
@@ -155,12 +156,11 @@ int ServerTCP::receive(char* _buffer) {
 }
 
 int ServerTCP::send(const char* _buffer, size_t _messageSize) {
-  if (socketFileDescriptor < 0) {
+  if (socketFileDescriptor < 0)
     return -1;
-  }
   int sent_size = ::send(socketFileDescriptor, _buffer, _messageSize, 0);
   if (sent_size < 0) {
-    std::cout << "ERROR: SEND" << std::endl;
+    std::cout << "ERROR: send error." << std::endl;
     if (socketFileDescriptor >= 0) {
       close(socketFileDescriptor);
       socketFileDescriptor = -1;

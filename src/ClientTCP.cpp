@@ -20,16 +20,17 @@
 using namespace Simple;
 
 ClientTCP::ClientTCP(std::string _ipServerNumber, int _portNumber, int _bufferSize)
-    : ipServerNumber(_ipServerNumber),
-      portNumber(_portNumber),
+    : ipServerNumber{_ipServerNumber},
+      portNumber{_portNumber},
       bufferSize{_bufferSize},
-      exit(false),
-      socketFileDescriptor(-1) {
+      exit{false},
+      socketFileDescriptor{-1} {
   socketFileDescriptor = socket(AF_INET, SOCK_STREAM, 0);
   threadReceiver       = std::unique_ptr<std::thread>(new std::thread(&ClientTCP::run, this));
 }
 
 ClientTCP::~ClientTCP() {
+  std::cout << "- ~ClientTCP\n";
   quit();
   if (threadReceiver && threadReceiver->joinable()) {
     threadReceiver->join();
@@ -37,10 +38,11 @@ ClientTCP::~ClientTCP() {
   if (threadTransmitter && threadTransmitter->joinable()) {
     threadTransmitter->join();
   }
-  std::cout << "joint" << std::endl;
+  std::cout << "Client closed." << std::endl;
 }
 
 void ClientTCP::quit() {
+  std::cout << "- quit\n";
   exit = true;
   if (socketFileDescriptor >= 0) {
     close(socketFileDescriptor);
@@ -49,15 +51,17 @@ void ClientTCP::quit() {
 }
 
 void ClientTCP::run() {
+  std::cout << "- run\n";
   char buffer[bufferSize];
   if (connect()) {
     if (threadTransmitter == nullptr) {
       threadTransmitter = std::unique_ptr<std::thread>(
           new std::thread(&ClientTCP::txChat, this));
+      std::cout << "- txChat\n";
     }
     while (!exit) {
       if (recv(buffer) <= 0) {
-        std::cout << "read size less than zero size" << std::endl;
+        std::cout << "ERROR: message size is less than zero." << std::endl;
         close(socketFileDescriptor);
         socketFileDescriptor = -1;
         break;
@@ -69,19 +73,22 @@ void ClientTCP::run() {
 }
 
 void ClientTCP::txChat() {
+  std::cout << "- txChat\n";
   while (!exit) {
-    std::string to_tx;
-    std::getline(std::cin, to_tx);
+    std::cout << "(Client) Insert the mex to be sent: ";
+    std::string consoleMessage;
+    std::getline(std::cin, consoleMessage);
     if (exit) {
       break;
     }
-    if (send(to_tx.c_str(), to_tx.length()) >= 0) {
+    if (send(consoleMessage.c_str(), consoleMessage.length()) >= 0) {
       send("\n", 1);
     }
   }
 }
 
 bool ClientTCP::connect() {
+  std::cout << "- connect\n";
   int option(1);
   setsockopt(socketFileDescriptor, SOL_SOCKET, SO_REUSEADDR, (char*)&option, sizeof(option));
 
@@ -90,13 +97,13 @@ bool ClientTCP::connect() {
   dest_addr.sin_port           = htons(portNumber);
 
   if (inet_pton(AF_INET, ipServerNumber.c_str(), &dest_addr.sin_addr) <= 0) {
-    std::cout << "ERROR CONVERTING IP TO INTERNET ADDR" << std::endl;
+    std::cout << "ERROR: converting IP to internet address." << std::endl;
     close(socketFileDescriptor);
     return false;
   }
 
   if (::connect(socketFileDescriptor, (struct sockaddr*)&dest_addr, sizeof(dest_addr)) < 0) {
-    std::cout << "ERROR: CONNECT" << std::endl;
+    std::cout << "ERROR: cannot connect." << std::endl;
     close(socketFileDescriptor);
     return false;
   }
@@ -106,7 +113,7 @@ bool ClientTCP::connect() {
 int ClientTCP::recv(char* _buffer) {
   int rcv_size = ::recv(socketFileDescriptor, _buffer, bufferSize, 0);
   if (rcv_size < 0) {
-    std::cout << "ERROR: RECV" << std::endl;
+    std::cout << "ERROR: receive." << std::endl;
     if (socketFileDescriptor >= 0) {
       close(socketFileDescriptor);
       socketFileDescriptor = -1;
@@ -121,7 +128,7 @@ int ClientTCP::send(const char* _buffer, size_t _messageSize) {
   }
   int sent_size = ::send(socketFileDescriptor, _buffer, _messageSize, 0);
   if (sent_size < 0) {
-    std::cout << "ERROR: SEND" << std::endl;
+    std::cout << "ERROR: send." << std::endl;
     if (socketFileDescriptor >= 0) {
       close(socketFileDescriptor);
       socketFileDescriptor = -1;

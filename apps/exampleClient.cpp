@@ -14,7 +14,7 @@ int main(int argc, char const *argv[]) {
     return 1;
   }
 #endif
-  Simple::ServerTCP serverTCP;
   Simple::ClientTCP clientTCP;
-  std::cout << "OK!\n";
+  std::cout << "Client OK!\n";
+  std::this_thread::sleep_for(std::chrono::seconds(500));
 }
